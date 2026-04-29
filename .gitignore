@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# uv
+.python-version
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Docker / runtime data
+postgres_data/
+hf_cache/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Most .md files are local/private; whitelist public-facing docs
+*.md
+!README.md
+!**/README.md
+
+# Planning docs (also private)
+docs/
