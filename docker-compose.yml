@@ -1,0 +1,141 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: docker/gateway.Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      vllm:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      vllm:
+        condition: service_started
+    restart: unless-stopped
+
+  vllm:
+    image: vllm/vllm-openai:latest
+    command:
+      - --model
+      - ${VLLM_MODEL_NAME:-Qwen/Qwen2.5-1.5B-Instruct}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      # Tuned for a GTX 1650 Ti (4GB VRAM, no tensor cores) running
+      # Qwen2.5-1.5B at fp16 (~3GB weights). See decisions.md #7.
+      - --dtype
+      - float16
+      # 0.78 (not 0.85) because Windows uses ~780MB of the 4GB card baseline
+      # (desktop compositor + browser GPU accel), leaving only ~3.22 GiB free
+      # at startup. 0.78 = 3.12 GiB requested, with ~0.10 GiB safety margin.
+      - --gpu-memory-utilization
+      - "0.78"
+      - --max-model-len
+      - "2048"
+      - --max-num-seqs
+      - "8"
+      - --enforce-eager
+      # Force TRITON_ATTN attention backend. vLLM's default FlashInfer requires
+      # tensor cores (1650 Ti's Turing chip lacks them); XFORMERS was dropped
+      # in vLLM 0.20; TORCH_SDPA is named but not registered in the default
+      # CUDA build ("Backend TORCH_SDPA must be registered before use").
+      # TRITON_ATTN runs Triton kernels and works on Turing without tensor
+      # cores. The older VLLM_ATTENTION_BACKEND env var was removed in 0.14+.
+      - --attention-config.backend
+      - TRITON_ATTN
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+    volumes:
+      # Persist HF model weights across `docker compose down` so the ~3GB
+      # Qwen2.5-1.5B-Instruct download only happens once.
+      - hf_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # Generous start_period — first boot downloads ~3GB of weights then
+      # loads them into GPU memory. Subsequent starts hit the cache and finish quickly.
+      start_period: 600s
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_USER=aiinfra
+      - POSTGRES_PASSWORD=aiinfra
+      - POSTGRES_DB=aiinfra
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiinfra -d aiinfra"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      # Anonymous admin access for local dev; Phase 5 hardening adds real auth.
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    volumes:
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  hf_cache:
+  grafana_data:

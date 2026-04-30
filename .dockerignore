@@ -1,0 +1,52 @@
+# VCS
+.git/
+.gitignore
+.gitattributes
+
+# Python build artifacts and caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Local-only docs (only README.md is public)
+*.md
+!README.md
+docs/
+
+# Tests (not needed at runtime)
+tests/
+
+# Local env files
+.env
+.env.local
+.env.*.local
+
+# Runtime data and caches (mounted volumes only)
+postgres_data/
+hf_cache/
+
+# Benchmarks (separate workflow)
+benchmarks/
+
+# CI and dev tooling
+.github/
+.pre-commit-config.yaml
+Makefile
+
+# Compose / Docker infra (Docker handles its own context)
+docker-compose.yml
+docker/
+
+# Observability config (mounted at compose-time, not into app images)
+observability/

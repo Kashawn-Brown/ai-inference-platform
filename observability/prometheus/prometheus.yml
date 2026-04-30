@@ -1,0 +1,13 @@
+# Phase 0 placeholder: prometheus scrapes only itself.
+# Phase 1 adds gateway and worker scrape configs once those processes
+# expose /metrics on their respective ports.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
