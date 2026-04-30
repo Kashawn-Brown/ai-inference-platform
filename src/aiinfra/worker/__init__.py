@@ -1,1 +1,1 @@
-"""Background worker: claims batch items from Postgres and processes them against vLLM."""
+"""Background worker: claims batch items from Postgres and runs them against vLLM."""
