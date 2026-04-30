@@ -1,0 +1,29 @@
+# Default: text files stored AND checked out with LF line endings.
+# Binary files left untouched.
+* text=auto eol=lf
+
+# Must be LF regardless of detection — break otherwise.
+Makefile           text eol=lf
+*.sh               text eol=lf
+Dockerfile         text eol=lf
+*.Dockerfile       text eol=lf
+.dockerignore      text eol=lf
+docker-compose.yml text eol=lf
+
+# Python — text + Python-aware diffs.
+*.py text eol=lf diff=python
+
+# uv lockfile — text, but don't attempt to merge conflicts.
+uv.lock text eol=lf merge=binary
+
+# Binary assets.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.zip  binary
+*.gz   binary
+*.tar  binary
+*.whl  binary
