@@ -48,18 +48,28 @@ services:
       - 0.0.0.0
       - --port
       - "8000"
-      # Tuned for a GTX 1650 Ti (4GB VRAM) running Qwen2.5-1.5B at fp16
-      # (~3GB weights). See decisions.md #7. Explicit fp16 because Turing
-      # lacks bf16 hardware; eager mode skips CUDA graph reservations.
+      # Tuned for a GTX 1650 Ti (4GB VRAM, no tensor cores) running
+      # Qwen2.5-1.5B at fp16 (~3GB weights). See decisions.md #7.
       - --dtype
       - float16
+      # 0.78 (not 0.85) because Windows uses ~780MB of the 4GB card baseline
+      # (desktop compositor + browser GPU accel), leaving only ~3.22 GiB free
+      # at startup. 0.78 = 3.12 GiB requested, with ~0.10 GiB safety margin.
       - --gpu-memory-utilization
-      - "0.85"
+      - "0.78"
       - --max-model-len
       - "2048"
       - --max-num-seqs
       - "8"
       - --enforce-eager
+      # Force TRITON_ATTN attention backend. vLLM's default FlashInfer requires
+      # tensor cores (1650 Ti's Turing chip lacks them); XFORMERS was dropped
+      # in vLLM 0.20; TORCH_SDPA is named but not registered in the default
+      # CUDA build ("Backend TORCH_SDPA must be registered before use").
+      # TRITON_ATTN runs Triton kernels and works on Turing without tensor
+      # cores. The older VLLM_ATTENTION_BACKEND env var was removed in 0.14+.
+      - --attention-config.backend
+      - TRITON_ATTN
     environment:
       - HF_TOKEN=${HF_TOKEN:-}
     volumes:

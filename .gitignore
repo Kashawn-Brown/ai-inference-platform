@@ -35,3 +35,4 @@ htmlcov/
 
 # Planning docs (also private)
 docs/
+vllm-crash.log
