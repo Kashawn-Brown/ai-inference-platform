@@ -1,0 +1,114 @@
+"""Unit tests for the vLLM client.
+
+httpx.MockTransport drives responses (and failures) without a network, so these
+stay fast and dependency-free. Async calls run via asyncio.run rather than
+pulling in a pytest async plugin.
+"""
+
+import asyncio
+import json
+
+import httpx
+import pytest
+
+from aiinfra.vllm.client import (
+    VLLMClient,
+    VLLMCompletion,
+    VLLMConnectionError,
+    VLLMResponseError,
+    VLLMTimeoutError,
+)
+
+# A well-formed OpenAI-compatible chat completion response.
+_OK_BODY = {
+    "model": "Qwen/Qwen2.5-1.5B-Instruct",
+    "choices": [{"message": {"role": "assistant", "content": "Hello there."}}],
+    "usage": {"prompt_tokens": 11, "completion_tokens": 4, "total_tokens": 15},
+}
+
+
+def _client(handler) -> VLLMClient:
+    return VLLMClient(
+        base_url="http://vllm:8000",
+        model_name="Qwen/Qwen2.5-1.5B-Instruct",
+        timeout_ms=30000,
+        transport=httpx.MockTransport(handler),
+    )
+
+
+def _run(client: VLLMClient, **kwargs) -> VLLMCompletion:
+    async def go():
+        try:
+            return await client.complete(**kwargs)
+        finally:
+            await client.aclose()
+
+    return asyncio.run(go())
+
+
+def test_complete_parses_output_and_usage():
+    client = _client(lambda req: httpx.Response(200, json=_OK_BODY))
+
+    result = _run(client, prompt="hi", max_tokens=16, temperature=0.7)
+
+    assert result == VLLMCompletion(
+        model="Qwen/Qwen2.5-1.5B-Instruct",
+        output="Hello there.",
+        prompt_tokens=11,
+        completion_tokens=4,
+    )
+
+
+def test_complete_sends_chat_payload():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["json"] = json.loads(request.content)
+        return httpx.Response(200, json=_OK_BODY)
+
+    client = _client(handler)
+    _run(client, prompt="explain DNS", max_tokens=64, temperature=0.2)
+
+    assert seen["url"] == "http://vllm:8000/v1/chat/completions"
+    assert seen["json"] == {
+        "model": "Qwen/Qwen2.5-1.5B-Instruct",
+        "messages": [{"role": "user", "content": "explain DNS"}],
+        "max_tokens": 64,
+        "temperature": 0.2,
+    }
+
+
+def test_timeout_maps_to_timeout_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    client = _client(handler)
+    with pytest.raises(VLLMTimeoutError):
+        _run(client, prompt="hi", max_tokens=16, temperature=0.7)
+
+
+def test_connection_failure_maps_to_connection_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused", request=request)
+
+    client = _client(handler)
+    with pytest.raises(VLLMConnectionError):
+        _run(client, prompt="hi", max_tokens=16, temperature=0.7)
+
+
+def test_non_2xx_maps_to_response_error_with_status():
+    client = _client(lambda req: httpx.Response(503, text="unavailable"))
+
+    with pytest.raises(VLLMResponseError) as excinfo:
+        _run(client, prompt="hi", max_tokens=16, temperature=0.7)
+
+    assert excinfo.value.status_code == 503
+
+
+def test_malformed_body_maps_to_response_error():
+    # 200 OK but missing the choices/usage structure entirely.
+    client = _client(lambda req: httpx.Response(200, json={"unexpected": True}))
+
+    with pytest.raises(VLLMResponseError):
+        _run(client, prompt="hi", max_tokens=16, temperature=0.7)
