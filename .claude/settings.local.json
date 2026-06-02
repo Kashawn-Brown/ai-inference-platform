@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(docker compose down *)"
+      "Bash(docker compose down *)",
+      "Bash(uv run *)",
+      "Bash(grep -nA3 -i \"black\" .pre-commit-config.yaml)"
     ]
   }
 }

@@ -21,3 +21,10 @@ services:
   worker:
     volumes:
       - ./src:/app/src
+
+  # Expose Postgres on the host so the integration suite (run on the host via
+  # `uv run pytest`, since the runtime images carry no dev deps) can reach it.
+  # High host port 55432 to avoid clashing with native Postgres on 5432/5433.
+  postgres:
+    ports:
+      - "55432:5432"
