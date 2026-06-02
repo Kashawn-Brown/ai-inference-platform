@@ -135,18 +135,14 @@ def upgrade() -> None:
     # Seed the single active model config. Values mirror the v1 config
     # defaults (Qwen2.5-1.5B-Instruct, 30s timeout, 512 default tokens);
     # the DB owns them from here on. id/timestamps come from server defaults.
-    op.execute(
-        sa.text(
-            """
+    op.execute(sa.text("""
             INSERT INTO model_configs
                 (model_name, provider_type, serving_mode,
                  max_tokens_default, timeout_ms, concurrency_limit, is_active)
             VALUES
                 ('Qwen/Qwen2.5-1.5B-Instruct', 'vllm', 'local',
                  512, 30000, NULL, true)
-            """
-        )
-    )
+            """))
 
 
 def downgrade() -> None:
