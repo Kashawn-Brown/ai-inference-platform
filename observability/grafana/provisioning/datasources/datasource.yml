@@ -1,0 +1,13 @@
+# Provisions the Prometheus datasource so dashboards work on first boot.
+# The fixed uid ("prometheus") is what the dashboard panels reference, so
+# provisioned dashboards bind to it without a manual datasource picker.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
