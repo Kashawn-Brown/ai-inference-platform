@@ -11,6 +11,7 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from aiinfra.observability.context import correlation_context
 from aiinfra.observability.metrics import set_queue_lag
 from aiinfra.vllm.client import VLLMClient
 from aiinfra.worker.claim import claim_next_item, measure_queue_lag
@@ -27,7 +28,9 @@ async def run_once(
         item = await claim_next_item(session)
         if item is None:
             return False
-        await process_item(session, client, item)
+        # Bind job/item ids so every log line processing emits carries them.
+        with correlation_context(job_id=str(item.batch_job_id), item_id=str(item.id)):
+            await process_item(session, client, item)
         return True
 
 

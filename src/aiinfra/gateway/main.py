@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from aiinfra.config import get_settings
+from aiinfra.gateway.middleware import CorrelationIdMiddleware
 from aiinfra.gateway.routes import batch, health, inference, metrics, models
 from aiinfra.logging import configure_logging
 from aiinfra.vllm.client import VLLMClient
@@ -30,6 +31,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="aiinfra gateway", version="0.1.0", lifespan=lifespan)
+    app.add_middleware(CorrelationIdMiddleware)
     app.include_router(health.router)
     app.include_router(inference.router)
     app.include_router(metrics.router)

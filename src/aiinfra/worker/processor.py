@@ -88,14 +88,8 @@ async def process_item(
     if terminal_status is not None:
         observe_batch_job(terminal_status)
 
-    logger.info(
-        "processed item",
-        extra={
-            "item_id": str(item.id),
-            "job_id": str(item.batch_job_id),
-            "status": item.status,
-        },
-    )
+    # item_id/job_id come from the correlation context the run loop binds.
+    logger.info("processed item", extra={"status": item.status})
 
 
 async def _complete_with_retry(client: VLLMClient, **kwargs):
