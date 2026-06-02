@@ -1,4 +1,4 @@
-.PHONY: install hooks up down logs rebuild test lint fmt
+.PHONY: install hooks up down logs rebuild migrate test lint fmt
 
 install:
 	uv sync
@@ -17,6 +17,9 @@ logs:
 
 rebuild:
 	docker compose build --no-cache && docker compose up -d
+
+migrate:
+	docker compose exec gateway alembic upgrade head
 
 test:
 	uv run pytest
