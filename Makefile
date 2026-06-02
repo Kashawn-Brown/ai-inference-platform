@@ -1,4 +1,4 @@
-.PHONY: install hooks up down logs rebuild migrate test lint fmt
+.PHONY: install hooks up down logs rebuild migrate test lint fmt bench-smoke bench-load
 
 install:
 	uv sync
@@ -31,3 +31,11 @@ lint:
 fmt:
 	uv run black .
 	uv run ruff check --fix .
+
+# Benchmarks — run the stack first (`make up`); needs a live gateway + vLLM.
+# Results land in benchmarks/results/ as JSON + a markdown summary per run.
+bench-smoke:
+	docker compose --profile bench run --rm k6 run /benchmarks/scripts/smoke.js
+
+bench-load:
+	docker compose --profile bench run --rm k6 run /benchmarks/scripts/load.js

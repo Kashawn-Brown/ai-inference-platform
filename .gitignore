@@ -32,6 +32,8 @@ htmlcov/
 *.md
 !README.md
 !**/README.md
+# Per-run benchmark summaries are committed artifacts, not local docs
+!benchmarks/results/*.md
 
 # Planning docs (also private)
 docs/

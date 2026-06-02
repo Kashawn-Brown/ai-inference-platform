@@ -146,6 +146,22 @@ services:
       - ./observability/grafana/dashboards:/etc/grafana/dashboards:ro
     restart: unless-stopped
 
+  # k6 load generator for benchmarks. Behind the `bench` profile so it never
+  # starts with `make up` and never runs in CI — benchmarking is a manual,
+  # on-demand step that needs a live gateway + vLLM (GPU). Invoked via the
+  # `make bench-*` targets (docker compose run). ./benchmarks is mounted so the
+  # scripts are visible and result artifacts land back on the host.
+  k6:
+    image: grafana/k6:latest
+    profiles: ["bench"]
+    working_dir: /benchmarks
+    environment:
+      # Reaches the gateway over the Compose network; override BENCH_BASE_URL
+      # (e.g. http://host.docker.internal:8000) to point elsewhere.
+      - BASE_URL=${BENCH_BASE_URL:-http://gateway:8000}
+    volumes:
+      - ./benchmarks:/benchmarks
+
 volumes:
   postgres_data:
   hf_cache:
