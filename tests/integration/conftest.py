@@ -95,6 +95,20 @@ def _clean_batch_tables(_sync_test_engine, _schema):
 
 
 @pytest.fixture
+def session_factory(_clean_batch_tables):
+    """Async session factory against the test DB, for code that takes a session
+    directly (e.g. the worker claim layer) rather than going through the API.
+
+    NullPool so each session opens/closes its own connection in the running
+    event loop; expire_on_commit=False so claimed rows stay usable post-commit.
+    """
+    engine = create_async_engine(get_settings().test_database_url, poolclass=NullPool)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    yield factory
+    asyncio.run(engine.dispose())
+
+
+@pytest.fixture
 def client(_clean_batch_tables):
     # NullPool: each request opens/closes its own connection in the TestClient's
     # event loop, so no asyncpg connection is reused across loops.
