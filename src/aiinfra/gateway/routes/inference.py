@@ -13,6 +13,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from aiinfra.gateway.deps import get_vllm_client
+from aiinfra.observability.metrics import observe_inference
 from aiinfra.schemas.inference import InferenceRequest, InferenceResponse, Usage
 from aiinfra.vllm.client import (
     VLLMClient,
@@ -57,16 +58,21 @@ async def create_inference(
             temperature=payload.temperature,
         )
     except (VLLMTimeoutError, VLLMConnectionError, VLLMResponseError) as exc:
+        elapsed_s = time.perf_counter() - start
+        status_label = type(exc).__name__
         http_status, detail = _ERROR_MAP[type(exc)]
+        observe_inference(status_label, elapsed_s)
         _log_request(
             request_id,
-            status_label=type(exc).__name__,
-            latency_ms=_elapsed_ms(start),
+            status_label=status_label,
+            latency_ms=int(elapsed_s * 1000),
             level=logging.WARNING,
         )
         raise HTTPException(status_code=http_status, detail=detail) from exc
 
-    latency_ms = _elapsed_ms(start)
+    elapsed_s = time.perf_counter() - start
+    latency_ms = int(elapsed_s * 1000)
+    observe_inference("ok", elapsed_s)
     _log_request(
         request_id,
         status_label="ok",
@@ -85,10 +91,6 @@ async def create_inference(
         ),
         latency_ms=latency_ms,
     )
-
-
-def _elapsed_ms(start: float) -> int:
-    return int((time.perf_counter() - start) * 1000)
 
 
 def _log_request(
