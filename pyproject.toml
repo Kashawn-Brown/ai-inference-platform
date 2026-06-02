@@ -17,11 +17,13 @@ dependencies = [
     "pydantic-settings>=2.6",
     "asyncpg>=0.30",
     "psycopg[binary]>=3.2",
+    "prometheus-client>=0.21",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3",
+    "pytest-asyncio>=0.24",
     "ruff>=0.8",
     "black>=24.10",
     "pre-commit>=4.0",
@@ -52,3 +54,5 @@ target-version = ["py312"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Auto mode: async test functions run under asyncio without a per-test marker.
+asyncio_mode = "auto"

@@ -10,6 +10,12 @@ import logging
 import sys
 from datetime import UTC, datetime
 
+# LogRecord attributes that are part of the record itself, not caller-supplied
+# context. Anything outside this set arrived via `extra=` and gets merged into
+# the JSON payload (request_id, status, latency_ms, ...). Computed from a blank
+# record so it stays correct across Python versions.
+_RESERVED_ATTRS = set(logging.makeLogRecord({}).__dict__) | {"message", "asctime"}
+
 
 # Custom JSON formatter for the logging system.
 class JsonFormatter(logging.Formatter):
@@ -20,6 +26,10 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
             "msg": record.getMessage(),
         }
+        # Merge caller-supplied `extra` fields (per-request context).
+        for key, value in record.__dict__.items():
+            if key not in _RESERVED_ATTRS:
+                payload[key] = value
         if record.exc_info:
             payload["exc_info"] = self.formatException(record.exc_info)
         return json.dumps(payload, default=str)

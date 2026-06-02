@@ -1,6 +1,5 @@
-# Phase 0 placeholder: prometheus scrapes only itself.
-# Phase 1 adds gateway and worker scrape configs once those processes
-# expose /metrics on their respective ports.
+# Prometheus scrapes itself and the gateway (/metrics on its app port).
+# The worker scrape config arrives in Phase 3, once the worker exposes /metrics.
 
 global:
   scrape_interval: 15s
@@ -11,3 +10,8 @@ scrape_configs:
     static_configs:
       - targets:
           - localhost:9090
+
+  - job_name: gateway
+    static_configs:
+      - targets:
+          - gateway:8000
