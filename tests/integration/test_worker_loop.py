@@ -6,10 +6,12 @@ to confirm it drains the queue and then stops on the event.
 """
 
 import asyncio
+import logging
 
 from sqlalchemy import select
 
 from aiinfra.db.models import BatchJob, BatchJobItem, ItemStatus, JobStatus
+from aiinfra.observability.context import CorrelationIdFilter
 from aiinfra.vllm.client import VLLMCompletion
 from aiinfra.worker.loop import run_forever, run_once
 from tests.integration.conftest import ACTIVE_MODEL
@@ -100,6 +102,40 @@ async def test_drains_job_to_completed(session_factory):
         it.status == ItemStatus.COMPLETED.value and it.output_payload for it in items
     )
     assert client.calls == 3
+
+
+class _CaptureHandler(logging.Handler):
+    """Captures records, running the correlation filter as a real handler would."""
+
+    def __init__(self):
+        super().__init__()
+        self.addFilter(CorrelationIdFilter())
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
+
+
+async def test_processing_logs_carry_correlation_ids(session_factory):
+    async with session_factory() as setup:
+        job = await _make_job(setup, n_items=1)
+
+    # Capture on the "aiinfra" logger at INFO (tests don't run configure_logging).
+    handler = _CaptureHandler()
+    aiinfra_logger = logging.getLogger("aiinfra")
+    prev_level = aiinfra_logger.level
+    aiinfra_logger.addHandler(handler)
+    aiinfra_logger.setLevel(logging.INFO)
+    try:
+        await run_once(_OkClient(), session_factory)
+    finally:
+        aiinfra_logger.removeHandler(handler)
+        aiinfra_logger.setLevel(prev_level)
+
+    processed = [r for r in handler.records if r.getMessage() == "processed item"]
+    assert processed, "expected a 'processed item' log line"
+    assert processed[0].job_id == str(job.id)
+    assert getattr(processed[0], "item_id", None)  # bound from the claimed item
 
 
 async def test_run_forever_drains_then_stops_on_event(session_factory):

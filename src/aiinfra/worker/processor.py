@@ -11,12 +11,14 @@ so a slow model call doesn't sit idle inside an open transaction.
 """
 
 import logging
+import time
 from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aiinfra.db.models import BatchJob, BatchJobItem, ItemStatus, JobStatus, ModelConfig
+from aiinfra.observability.metrics import observe_batch_item, observe_batch_job
 from aiinfra.vllm.client import (
     VLLMClient,
     VLLMConnectionError,
@@ -43,6 +45,9 @@ async def process_item(
     Always commits a terminal item state (completed/failed) and the job's
     progress; never re-raises vLLM errors (a failed item is normal flow).
     """
+    # End-to-end processing time (config read + the dominant vLLM call); the
+    # histogram's per-status _count is also the items-processed count.
+    started = time.perf_counter()
     job = await session.get(BatchJob, item.batch_job_id)
     config = await _get_model_config(session, job.model_name)
     payload = item.input_payload or {}
@@ -76,16 +81,15 @@ async def process_item(
         except VLLMError as exc:
             _fail(item, str(exc))
 
-    _update_job_progress(job, item.status)
+    terminal_status = _update_job_progress(job, item.status)
     await session.commit()
-    logger.info(
-        "processed item",
-        extra={
-            "item_id": str(item.id),
-            "job_id": str(item.batch_job_id),
-            "status": item.status,
-        },
-    )
+
+    observe_batch_item(item.status, time.perf_counter() - started)
+    if terminal_status is not None:
+        observe_batch_job(terminal_status)
+
+    # item_id/job_id come from the correlation context the run loop binds.
+    logger.info("processed item", extra={"status": item.status})
 
 
 async def _complete_with_retry(client: VLLMClient, **kwargs):
@@ -113,7 +117,9 @@ def _fail(item: BatchJobItem, message: str) -> None:
     item.error_message = message
 
 
-def _update_job_progress(job: BatchJob, item_status: str) -> None:
+def _update_job_progress(job: BatchJob, item_status: str) -> str | None:
+    """Bump the job's progress counters; return its terminal status if this
+    item was the last one (so the caller can count the job), else None."""
     if item_status == ItemStatus.COMPLETED.value:
         job.completed_items += 1
     elif item_status == ItemStatus.FAILED.value:
@@ -128,3 +134,5 @@ def _update_job_progress(job: BatchJob, item_status: str) -> None:
             if job.completed_items > 0
             else JobStatus.FAILED.value
         )
+        return job.status
+    return None

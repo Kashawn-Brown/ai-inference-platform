@@ -1,14 +1,17 @@
 """Structured logging setup.
 
 stdlib logging configured to emit one JSON object per log record on stdout.
-Used by both gateway and worker entrypoints. Correlation IDs and per-request
-fields arrive in Phase 1 / Phase 3.
+Used by both gateway and worker entrypoints. A CorrelationIdFilter on the
+handler stamps the current request_id/job_id/item_id onto every record, so
+correlation fields appear without each call site passing them by hand.
 """
 
 import json
 import logging
 import sys
 from datetime import UTC, datetime
+
+from aiinfra.observability.context import CorrelationIdFilter
 
 # LogRecord attributes that are part of the record itself, not caller-supplied
 # context. Anything outside this set arrived via `extra=` and gets merged into
@@ -44,6 +47,8 @@ def configure_logging(level: str = "INFO", log_format: str = "json") -> None:
         handler.setFormatter(
             logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
         )
+    # Inject correlation fields (request_id/job_id/item_id) onto every record.
+    handler.addFilter(CorrelationIdFilter())
 
     # Replace any prior handlers (e.g. uvicorn's defaults) so output stays
     # consistent across the process.

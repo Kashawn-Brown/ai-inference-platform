@@ -3,7 +3,9 @@
     "allow": [
       "Bash(docker compose down *)",
       "Bash(uv run *)",
-      "Bash(grep -nA3 -i \"black\" .pre-commit-config.yaml)"
+      "Bash(grep -nA3 -i \"black\" .pre-commit-config.yaml)",
+      "Bash(docker version *)",
+      "Bash(gh pr *)"
     ]
   }
 }

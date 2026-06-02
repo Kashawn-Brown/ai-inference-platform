@@ -1,13 +1,30 @@
 """Prometheus metrics — shared definitions for gateway and worker.
 
-Phase 1 covers live inference: request count, request duration, and error count.
-These ride on one labeled counter plus a histogram — the error count is the
-non-"ok" slice of the counter (`status != "ok"`), so there's no separate error
-metric to keep in sync. The worker adds its own metrics against the same default
-registry in later phases.
+Gateway (Phase 1) covers live inference: request count, request duration, and
+error count. These ride on one labeled counter plus a histogram — the error
+count is the non-"ok" slice of the counter (`status != "ok"`), so there's no
+separate error metric to keep in sync.
+
+Worker (Phase 3) adds batch metrics against the same default registry: a job
+counter by terminal status, an item processing-duration histogram (whose
+per-status `_count` doubles as the items-processed counter, same single-metric
+discipline as inference), and a queue-lag gauge — the age of the oldest queued
+item, sampled by the run loop.
 """
 
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+import logging
+from wsgiref.simple_server import WSGIServer
+
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+    start_http_server,
+)
+
+logger = logging.getLogger("aiinfra.observability")
 
 # Latency buckets tuned for LLM inference: sub-second through the 30s timeout.
 _DURATION_BUCKETS = (0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0)
@@ -37,9 +54,67 @@ def observe_inference(status: str, duration_seconds: float) -> None:
     inference_request_duration.labels(status=status).observe(duration_seconds)
 
 
+# --- Worker batch metrics (Phase 3) -----------------------------------------
+
+batch_jobs = Counter(
+    "aiinfra_batch_jobs",
+    "Batch jobs that reached a terminal status, by status.",
+    labelnames=("status",),
+)
+
+batch_item_processing_duration = Histogram(
+    "aiinfra_batch_item_processing_duration_seconds",
+    "Time to process one batch item in the worker, by terminal status. "
+    "The per-status _count is also the items-processed count.",
+    labelnames=("status",),
+    buckets=_DURATION_BUCKETS,
+)
+
+batch_queue_lag = Gauge(
+    "aiinfra_batch_queue_lag_seconds",
+    "Age of the oldest queued batch item; 0 when the queue is empty.",
+)
+
+
+def observe_batch_item(status: str, duration_seconds: float) -> None:
+    """Record one processed batch item (`status` is "completed" or "failed").
+
+    Matches the per-item log line's `status` field. The histogram's `_count`
+    per status is the items-processed counter, so there's no separate counter.
+    """
+    batch_item_processing_duration.labels(status=status).observe(duration_seconds)
+
+
+def observe_batch_job(status: str) -> None:
+    """Record one batch job reaching a terminal status ("completed"/"failed")."""
+    batch_jobs.labels(status=status).inc()
+
+
+def set_queue_lag(seconds: float) -> None:
+    """Set the queue-lag gauge to the current oldest-queued-item age."""
+    batch_queue_lag.set(seconds)
+
+
 def render_latest() -> tuple[bytes, str]:
     """Current metrics in Prometheus text exposition format, plus content type.
 
-    Framework-free so the worker's future scrape endpoint can reuse it.
+    Framework-free; the gateway's /metrics route returns this directly. The
+    worker exposes the same registry through start_metrics_server instead.
     """
     return generate_latest(), CONTENT_TYPE_LATEST
+
+
+def start_metrics_server(port: int, addr: str = "0.0.0.0") -> WSGIServer:
+    """Expose the default registry on `addr:port` for Prometheus to scrape.
+
+    Runs a tiny WSGI server in a daemon thread — prometheus_client's standard
+    pattern for a process that isn't itself a web app. The server lives off the
+    asyncio event loop, so it can't block the worker's claim/process cycle, and
+    a scrape endpoint holds no state to flush, so the daemon thread simply exits
+    with the process. Binds 0.0.0.0 by default so Prometheus reaches it across
+    the Compose network. Returns the server so callers (and tests) can shut it
+    down explicitly.
+    """
+    server, _thread = start_http_server(port, addr=addr)
+    logger.info("metrics server listening", extra={"addr": addr, "port": port})
+    return server

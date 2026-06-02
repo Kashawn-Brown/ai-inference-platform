@@ -10,7 +10,7 @@ in the processing step — a long-held lock would block other workers.
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aiinfra.db.models import BatchJob, BatchJobItem, ItemStatus, JobStatus
@@ -54,3 +54,19 @@ async def claim_next_item(session: AsyncSession) -> BatchJobItem | None:
         extra={"item_id": str(item.id), "job_id": str(item.batch_job_id)},
     )
     return item
+
+
+async def measure_queue_lag(session: AsyncSession) -> float:
+    """Seconds the oldest queued item has been waiting; 0.0 if the queue is empty.
+
+    Queue lag as a time-based backlog (now - oldest queued item's created_at),
+    the gauge the run loop samples each iteration. Clamped at 0 so clock skew
+    between the DB and the worker can't surface a negative lag.
+    """
+    stmt = select(func.min(BatchJobItem.created_at)).where(
+        BatchJobItem.status == ItemStatus.QUEUED.value
+    )
+    oldest = (await session.execute(stmt)).scalar_one_or_none()
+    if oldest is None:
+        return 0.0
+    return max(0.0, (datetime.now(UTC) - oldest).total_seconds())

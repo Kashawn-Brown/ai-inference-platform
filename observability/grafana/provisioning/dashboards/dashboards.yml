@@ -1,0 +1,16 @@
+# Loads dashboard JSON from /etc/grafana/dashboards on boot and re-reads it
+# every 10s. allowUiUpdates lets you tune panels in the UI during a session;
+# the source of truth stays the JSON files (export from the UI and commit them).
+apiVersion: 1
+
+providers:
+  - name: aiinfra
+    orgId: 1
+    folder: AI Inference
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

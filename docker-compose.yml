@@ -32,6 +32,10 @@ services:
     env_file:
       - path: .env
         required: false
+    # Metrics scrape port (METRICS_PORT_WORKER); Prometheus reaches it over the
+    # Compose network, the host mapping is for manual curl during load tests.
+    ports:
+      - "9101:9101"
     depends_on:
       postgres:
         condition: service_healthy
@@ -133,6 +137,13 @@ services:
       - GF_AUTH_DISABLE_LOGIN_FORM=true
     volumes:
       - grafana_data:/var/lib/grafana
+      # Mount only the subdirs we own so the image's stock provisioning dirs
+      # (plugins/, alerting/) stay in place and don't log "missing" errors.
+      # Read-only: the JSON files are the source of truth (tune in the UI,
+      # export, commit back). See observability/grafana/.
+      - ./observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./observability/grafana/dashboards:/etc/grafana/dashboards:ro
     restart: unless-stopped
 
 volumes:

@@ -13,6 +13,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from aiinfra.gateway.deps import get_vllm_client
+from aiinfra.observability.context import get_correlation
 from aiinfra.observability.metrics import observe_inference
 from aiinfra.schemas.inference import InferenceRequest, InferenceResponse, Usage
 from aiinfra.vllm.client import (
@@ -48,7 +49,9 @@ async def create_inference(
     payload: InferenceRequest,
     client: Annotated[VLLMClient, Depends(get_vllm_client)],
 ) -> InferenceResponse:
-    request_id = str(uuid.uuid4())
+    # The middleware binds request_id per request (inbound header or generated);
+    # reuse it so the response body, the X-Request-ID header, and logs all agree.
+    request_id = get_correlation().get("request_id") or str(uuid.uuid4())
     start = time.perf_counter()
 
     try:
