@@ -107,3 +107,26 @@ async def test_malformed_body_maps_to_response_error():
     with pytest.raises(VLLMResponseError):
         await client.complete(prompt="hi", max_tokens=16, temperature=0.7)
     await client.aclose()
+
+
+async def test_ping_true_on_healthy():
+    client = _client(lambda req: httpx.Response(200))
+
+    assert await client.ping() is True
+    await client.aclose()
+
+
+async def test_ping_false_on_non_2xx():
+    client = _client(lambda req: httpx.Response(503))
+
+    assert await client.ping() is False
+    await client.aclose()
+
+
+async def test_ping_false_on_transport_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused", request=request)
+
+    client = _client(handler)
+    assert await client.ping() is False
+    await client.aclose()

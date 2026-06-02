@@ -146,6 +146,18 @@ class VLLMClient:
             logger.warning("vllm returned malformed body", extra={"error": str(exc)})
             raise VLLMResponseError(f"malformed vLLM response: {exc}") from exc
 
+    async def ping(self) -> bool:
+        """Readiness probe — True if vLLM's /health responds 2xx.
+
+        Swallows transport errors and non-2xx into False: a readiness check
+        wants a pass/fail signal, not the typed errors `complete` raises.
+        """
+        try:
+            response = await self._client.get("/health")
+        except httpx.HTTPError:
+            return False
+        return response.is_success
+
     async def aclose(self) -> None:
         """Close the underlying connection pool. Call on process shutdown."""
         await self._client.aclose()
