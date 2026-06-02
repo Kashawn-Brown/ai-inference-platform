@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from aiinfra.config import get_settings
-from aiinfra.gateway.routes import health, inference, metrics
+from aiinfra.gateway.routes import batch, health, inference, metrics, models
 from aiinfra.logging import configure_logging
 from aiinfra.vllm.client import VLLMClient
 
@@ -33,6 +33,8 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(inference.router)
     app.include_router(metrics.router)
+    app.include_router(batch.router)
+    app.include_router(models.router)
     return app
 
 

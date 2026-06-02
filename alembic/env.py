@@ -14,6 +14,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
+import aiinfra.db.models  # noqa: F401  # registers tables on SQLModel.metadata
 from aiinfra.config import get_settings
 
 config = context.config

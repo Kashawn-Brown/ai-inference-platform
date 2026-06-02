@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     database_url_sync: str = (
         "postgresql+psycopg://aiinfra:aiinfra@postgres:5432/aiinfra"
     )
+    # Test DB — used only by the integration suite. Defaults to a separate
+    # database on the host-mapped Postgres (port 55432, see the compose
+    # override) so tests never touch dev data. CI overrides this to its service.
+    test_database_url: str = (
+        "postgresql+asyncpg://aiinfra:aiinfra@localhost:55432/aiinfra_test"
+    )
 
     # vLLM
     vllm_base_url: str = "http://vllm:8000"

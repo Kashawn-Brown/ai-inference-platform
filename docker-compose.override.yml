@@ -1,0 +1,30 @@
+# Local-dev overrides — auto-merged by `docker compose` on top of
+# docker-compose.yml. The base file stays prod-faithful (source is baked into
+# the image at build time); this file bind-mounts the host working tree over
+# those baked paths so code and migration edits are live without a rebuild.
+#
+# The project is installed editable in the image (_editable_impl_aiinfra.pth
+# puts /app/src on sys.path), so mounting ./src over /app/src swaps the code
+# the running process imports. Mounting ./alembic + ./alembic.ini lets
+# `make migrate` (alembic exec) see new revision scripts immediately.
+#
+# Not for production: a real deploy would run `docker compose -f
+# docker-compose.yml ...` to exclude this override.
+
+services:
+  gateway:
+    volumes:
+      - ./src:/app/src
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+
+  worker:
+    volumes:
+      - ./src:/app/src
+
+  # Expose Postgres on the host so the integration suite (run on the host via
+  # `uv run pytest`, since the runtime images carry no dev deps) can reach it.
+  # High host port 55432 to avoid clashing with native Postgres on 5432/5433.
+  postgres:
+    ports:
+      - "55432:5432"
