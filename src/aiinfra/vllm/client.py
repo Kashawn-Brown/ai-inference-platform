@@ -94,11 +94,21 @@ class VLLMClient:
         )
 
     async def complete(
-        self, *, prompt: str, max_tokens: int, temperature: float
+        self,
+        *,
+        prompt: str,
+        max_tokens: int,
+        temperature: float,
+        model: str | None = None,
     ) -> VLLMCompletion:
-        """Run a single chat completion and return the model output + usage."""
+        """Run a single chat completion and return the model output + usage.
+
+        `model` overrides the client's configured model for this call — the
+        batch worker passes each job's model_name; the gateway omits it and
+        uses the configured default.
+        """
         payload = {
-            "model": self._model_name,
+            "model": model or self._model_name,
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": max_tokens,
             "temperature": temperature,

@@ -70,6 +70,22 @@ async def test_complete_sends_chat_payload():
     }
 
 
+async def test_complete_model_override_sets_payload_model():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["json"] = json.loads(request.content)
+        return httpx.Response(200, json=_OK_BODY)
+
+    client = _client(handler)
+    await client.complete(
+        prompt="hi", max_tokens=16, temperature=0.7, model="other/model"
+    )
+    await client.aclose()
+
+    assert seen["json"]["model"] == "other/model"
+
+
 async def test_timeout_maps_to_timeout_error():
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ReadTimeout("timed out", request=request)
