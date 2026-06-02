@@ -9,13 +9,19 @@ import urllib.request
 from prometheus_client import REGISTRY
 
 from aiinfra.observability.metrics import (
+    observe_batch_item,
+    observe_batch_job,
     observe_inference,
     render_latest,
+    set_queue_lag,
     start_metrics_server,
 )
 
 _COUNT = "aiinfra_inference_requests_total"
 _DURATION_COUNT = "aiinfra_inference_request_duration_seconds_count"
+_JOBS = "aiinfra_batch_jobs_total"
+_ITEM_DURATION_COUNT = "aiinfra_batch_item_processing_duration_seconds_count"
+_QUEUE_LAG = "aiinfra_batch_queue_lag_seconds"
 
 
 def _sample(name: str, status: str) -> float:
@@ -55,6 +61,28 @@ def test_render_latest_emits_exposition_text():
     assert _COUNT in text
     assert "aiinfra_inference_request_duration_seconds_bucket" in text
     assert content_type.startswith("text/plain")
+
+
+def test_observe_batch_job_increments_counter_by_status():
+    before = _sample(_JOBS, "completed")
+
+    observe_batch_job("completed")
+
+    assert _sample(_JOBS, "completed") == before + 1
+
+
+def test_observe_batch_item_records_duration_by_status():
+    before = _sample(_ITEM_DURATION_COUNT, "failed")
+
+    observe_batch_item("failed", 0.5)
+
+    assert _sample(_ITEM_DURATION_COUNT, "failed") == before + 1
+
+
+def test_set_queue_lag_sets_gauge_value():
+    set_queue_lag(12.5)
+
+    assert REGISTRY.get_sample_value(_QUEUE_LAG) == 12.5
 
 
 def test_metrics_server_serves_exposition_over_http():

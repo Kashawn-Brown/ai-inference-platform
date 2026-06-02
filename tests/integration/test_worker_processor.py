@@ -8,6 +8,8 @@ missing-prompt short-circuit, and model/serving-param resolution.
 
 from types import SimpleNamespace
 
+from prometheus_client import REGISTRY
+
 from aiinfra.db.models import BatchJob, BatchJobItem, ItemStatus, JobStatus
 from aiinfra.vllm.client import (
     VLLMCompletion,
@@ -198,6 +200,33 @@ async def test_resolves_max_tokens_from_config(session_factory):
         await process_item(s, client, item)
 
     assert client.calls[0].max_tokens == 512
+
+
+def _metric(name, status):
+    return REGISTRY.get_sample_value(name, {"status": status}) or 0.0
+
+
+async def test_processing_records_job_and_item_metrics(session_factory):
+    # Process-global metrics, so assert on before/after deltas (order-independent).
+    jobs_before = _metric("aiinfra_batch_jobs_total", "completed")
+    items_before = _metric(
+        "aiinfra_batch_item_processing_duration_seconds_count", "completed"
+    )
+
+    async with session_factory() as setup:
+        await _make_job(setup, payloads=[{"prompt": "hi"}])
+
+    client = _FakeClient([_completion("ok")])
+    async with session_factory() as s:
+        item = await claim_next_item(s)
+        await process_item(s, client, item)
+
+    # One item processed (histogram _count) and one job reached terminal.
+    assert (
+        _metric("aiinfra_batch_item_processing_duration_seconds_count", "completed")
+        == items_before + 1
+    )
+    assert _metric("aiinfra_batch_jobs_total", "completed") == jobs_before + 1
 
 
 async def test_payload_overrides_generation_params(session_factory):
