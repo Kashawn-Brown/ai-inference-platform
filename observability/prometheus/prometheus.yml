@@ -1,5 +1,5 @@
-# Prometheus scrapes itself and the gateway (/metrics on its app port).
-# The worker scrape config arrives in Phase 3, once the worker exposes /metrics.
+# Prometheus scrapes itself, the gateway (/metrics on its app port), and the
+# worker (/metrics on its dedicated daemon-thread server, METRICS_PORT_WORKER).
 
 global:
   scrape_interval: 15s
@@ -15,3 +15,8 @@ scrape_configs:
     static_configs:
       - targets:
           - gateway:8000
+
+  - job_name: worker
+    static_configs:
+      - targets:
+          - worker:9101

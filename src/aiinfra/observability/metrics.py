@@ -7,7 +7,18 @@ metric to keep in sync. The worker adds its own metrics against the same default
 registry in later phases.
 """
 
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+import logging
+from wsgiref.simple_server import WSGIServer
+
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    Counter,
+    Histogram,
+    generate_latest,
+    start_http_server,
+)
+
+logger = logging.getLogger("aiinfra.observability")
 
 # Latency buckets tuned for LLM inference: sub-second through the 30s timeout.
 _DURATION_BUCKETS = (0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0)
@@ -40,6 +51,23 @@ def observe_inference(status: str, duration_seconds: float) -> None:
 def render_latest() -> tuple[bytes, str]:
     """Current metrics in Prometheus text exposition format, plus content type.
 
-    Framework-free so the worker's future scrape endpoint can reuse it.
+    Framework-free; the gateway's /metrics route returns this directly. The
+    worker exposes the same registry through start_metrics_server instead.
     """
     return generate_latest(), CONTENT_TYPE_LATEST
+
+
+def start_metrics_server(port: int, addr: str = "0.0.0.0") -> WSGIServer:
+    """Expose the default registry on `addr:port` for Prometheus to scrape.
+
+    Runs a tiny WSGI server in a daemon thread — prometheus_client's standard
+    pattern for a process that isn't itself a web app. The server lives off the
+    asyncio event loop, so it can't block the worker's claim/process cycle, and
+    a scrape endpoint holds no state to flush, so the daemon thread simply exits
+    with the process. Binds 0.0.0.0 by default so Prometheus reaches it across
+    the Compose network. Returns the server so callers (and tests) can shut it
+    down explicitly.
+    """
+    server, _thread = start_http_server(port, addr=addr)
+    logger.info("metrics server listening", extra={"addr": addr, "port": port})
+    return server

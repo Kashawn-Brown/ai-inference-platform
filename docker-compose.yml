@@ -32,6 +32,10 @@ services:
     env_file:
       - path: .env
         required: false
+    # Metrics scrape port (METRICS_PORT_WORKER); Prometheus reaches it over the
+    # Compose network, the host mapping is for manual curl during load tests.
+    ports:
+      - "9101:9101"
     depends_on:
       postgres:
         condition: service_healthy

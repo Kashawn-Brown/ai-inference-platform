@@ -15,6 +15,7 @@ from aiinfra.config import Settings, get_settings
 from aiinfra.db.engine import get_engine
 from aiinfra.db.session import get_session_factory
 from aiinfra.logging import configure_logging
+from aiinfra.observability.metrics import start_metrics_server
 from aiinfra.vllm.client import VLLMClient
 from aiinfra.worker.loop import run_forever
 
@@ -22,6 +23,9 @@ logger = logging.getLogger("aiinfra.worker")
 
 
 async def _run(settings: Settings) -> None:
+    # Expose /metrics before the loop starts so the worker is scrapeable from
+    # boot. The daemon-thread server runs off this loop and needs no teardown.
+    start_metrics_server(settings.metrics_port_worker)
     client = VLLMClient.from_settings(settings)
     factory = get_session_factory()
     stop_event = asyncio.Event()
