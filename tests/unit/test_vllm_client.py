@@ -1,11 +1,10 @@
 """Unit tests for the vLLM client.
 
 httpx.MockTransport drives responses (and failures) without a network, so these
-stay fast and dependency-free. Async calls run via asyncio.run rather than
-pulling in a pytest async plugin.
+stay fast and dependency-free at the network layer. Async tests run under
+pytest-asyncio's auto mode (configured in pyproject.toml) — no per-test marker.
 """
 
-import asyncio
 import json
 
 import httpx
@@ -36,20 +35,11 @@ def _client(handler) -> VLLMClient:
     )
 
 
-def _run(client: VLLMClient, **kwargs) -> VLLMCompletion:
-    async def go():
-        try:
-            return await client.complete(**kwargs)
-        finally:
-            await client.aclose()
-
-    return asyncio.run(go())
-
-
-def test_complete_parses_output_and_usage():
+async def test_complete_parses_output_and_usage():
     client = _client(lambda req: httpx.Response(200, json=_OK_BODY))
 
-    result = _run(client, prompt="hi", max_tokens=16, temperature=0.7)
+    result = await client.complete(prompt="hi", max_tokens=16, temperature=0.7)
+    await client.aclose()
 
     assert result == VLLMCompletion(
         model="Qwen/Qwen2.5-1.5B-Instruct",
@@ -59,7 +49,7 @@ def test_complete_parses_output_and_usage():
     )
 
 
-def test_complete_sends_chat_payload():
+async def test_complete_sends_chat_payload():
     seen = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -68,7 +58,8 @@ def test_complete_sends_chat_payload():
         return httpx.Response(200, json=_OK_BODY)
 
     client = _client(handler)
-    _run(client, prompt="explain DNS", max_tokens=64, temperature=0.2)
+    await client.complete(prompt="explain DNS", max_tokens=64, temperature=0.2)
+    await client.aclose()
 
     assert seen["url"] == "http://vllm:8000/v1/chat/completions"
     assert seen["json"] == {
@@ -79,36 +70,40 @@ def test_complete_sends_chat_payload():
     }
 
 
-def test_timeout_maps_to_timeout_error():
+async def test_timeout_maps_to_timeout_error():
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ReadTimeout("timed out", request=request)
 
     client = _client(handler)
     with pytest.raises(VLLMTimeoutError):
-        _run(client, prompt="hi", max_tokens=16, temperature=0.7)
+        await client.complete(prompt="hi", max_tokens=16, temperature=0.7)
+    await client.aclose()
 
 
-def test_connection_failure_maps_to_connection_error():
+async def test_connection_failure_maps_to_connection_error():
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("refused", request=request)
 
     client = _client(handler)
     with pytest.raises(VLLMConnectionError):
-        _run(client, prompt="hi", max_tokens=16, temperature=0.7)
+        await client.complete(prompt="hi", max_tokens=16, temperature=0.7)
+    await client.aclose()
 
 
-def test_non_2xx_maps_to_response_error_with_status():
+async def test_non_2xx_maps_to_response_error_with_status():
     client = _client(lambda req: httpx.Response(503, text="unavailable"))
 
     with pytest.raises(VLLMResponseError) as excinfo:
-        _run(client, prompt="hi", max_tokens=16, temperature=0.7)
+        await client.complete(prompt="hi", max_tokens=16, temperature=0.7)
+    await client.aclose()
 
     assert excinfo.value.status_code == 503
 
 
-def test_malformed_body_maps_to_response_error():
+async def test_malformed_body_maps_to_response_error():
     # 200 OK but missing the choices/usage structure entirely.
     client = _client(lambda req: httpx.Response(200, json={"unexpected": True}))
 
     with pytest.raises(VLLMResponseError):
-        _run(client, prompt="hi", max_tokens=16, temperature=0.7)
+        await client.complete(prompt="hi", max_tokens=16, temperature=0.7)
+    await client.aclose()
