@@ -39,10 +39,10 @@ class Settings(BaseSettings):
 
     # Worker
     worker_poll_interval_ms: int = 500
-    worker_batch_claim_size: int = 1
 
-    # Metrics — separate Prometheus scrape ports for gateway and worker.
-    metrics_port_gateway: int = 9100
+    # Metrics — the worker exposes /metrics on a dedicated port (it isn't a web
+    # app). The gateway serves /metrics as a route on its app port, so it needs
+    # no separate port here.
     metrics_port_worker: int = 9101
 
 
