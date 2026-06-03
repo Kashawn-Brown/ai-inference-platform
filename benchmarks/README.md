@@ -49,7 +49,7 @@ docker compose --profile bench run --rm \
 | `BASE_URL` | `http://gateway:8000` | Gateway base URL the script targets. |
 | `VUS` | `1` | Virtual users (smoke). |
 | `DURATION` | `30s` | Run length (smoke). |
-| `LOAD_VUS` | `3` | Sustained virtual users (load). |
+| `LOAD_VUS` | `2` | Sustained virtual users (load). |
 | `LOAD_RAMP_UP` | `30s` | Ramp-up duration (load). |
 | `LOAD_HOLD` | `1m` | Hold duration at `LOAD_VUS` (load). |
 | `LOAD_RAMP_DOWN` | `15s` | Ramp-down duration (load). |
