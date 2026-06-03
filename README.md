@@ -14,22 +14,19 @@ Most "AI platforms" are either a thin wrapper around a hosted API or an enterpri
 
 ## Architecture
 
-```
-┌──────────┐     POST /v1/inference     ┌──────────┐    HTTP    ┌──────────┐
-│  Client  │ ─────────────────────────▶ │ FastAPI  │ ─────────▶ │   vLLM   │
-└──────────┘                            │ Gateway  │            │  Server  │
-                                        └────┬─────┘            └─────▲────┘
-                                             │                        │
-                                             │ SQL                    │ HTTP
-                                             ▼                        │
-                                        ┌──────────┐                  │
-                                        │ Postgres │ ◀────────────┐   │
-                                        └──────────┘              │   │
-                                             ▲                    │   │
-                                             │ SQL                │   │
-                                        ┌────┴─────┐              │   │
-                                        │  Worker  │ ─────────────┴───┘
-                                        └──────────┘
+```mermaid
+flowchart LR
+    Client["Client"]
+    Gateway["FastAPI Gateway"]
+    Worker["Worker (batch loop)"]
+    vLLM["vLLM Server<br/>Qwen2.5-1.5B-Instruct"]
+    PG[("Postgres")]
+
+    Client -->|"POST /v1/inference"| Gateway
+    Gateway -->|"HTTP (live inference)"| vLLM
+    Gateway -->|"SQL (batch state)"| PG
+    Worker -->|"SQL (claim items)"| PG
+    Worker -->|"HTTP (direct)"| vLLM
 ```
 
 The worker calls vLLM directly — never through the gateway. Live request data lives in logs and metrics; only batch state lives in Postgres.
