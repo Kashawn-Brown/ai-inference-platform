@@ -1,15 +1,19 @@
 # How this was built
 
-I built this with an AI coding agent. I'm saying that up front because it's the first thing people want to know — and because *how* you do it is the whole story. There's a real difference between directing an agent and just prompting one until something compiles, and I'd rather be straight about which this was.
+Before any of the files, before any code, this was just me thinking through what it should be — how it should work, and what I was going to build. That thinking became the structure everything else followed.
 
-What kept me on the directing side was a set of working files I maintained locally, alongside the code, the entire way through. They don't ship in the repo — some of it's personal, and publishing my notes was never the point — but they're worth describing, because they're what made this deliberate instead of random:
+I built it with an AI coding agent (Claude Code). But there's a real difference between directing an agent and just prompting one until things compile and it looks good. I wanted to own my code, not be lost in it: to stay in control of the decisions and the flow rather than hand them to a model.
 
-- A **brief** I wrote before any code — the architecture, the API, the data model, the phased plan, and an explicit list of things I was *not* going to build. Work ran against that contract, not a stream of one-off asks.
-- A **plan** I kept iterating on top of as things came up, instead of branching off in a new direction every time something changed. Adding to one tracked plan rather than starting over is what kept me grounded.
+What helped keep me on track was a set of working files I maintained locally, alongside the code, the whole way through. They don't ship in the repo — some of it's personal, and publishing my notes was never the point — but they're worth describing, because they're what made this deliberate instead of random:
+
+- A **brief** where that thinking became a written contract — the architecture, the API, the data model, the phased plan — so work ran against something fixed instead of a stream of one-off asks.
+- A **plan** I tracked development against and kept building on. It started as that full structure of the initial plan, but the real value showed when something new came up mid-build — a feature I hadn't thought of, a better approach — and I could weave it into the existing plan instead of veering off into chaos. It stayed one living document, and that's what kept me on track.
 - A **decisions log** — every real architectural choice written down with its reasoning and the alternatives I'd weighed. That's what stopped me from quietly relitigating a settled call two phases later, or contradicting an earlier one without noticing.
-- A **build log and timeline** in plain language, no jargon — what happened and why at each step — so I could step away for days and pick back up knowing exactly where I was.
+- A **build log and timeline** in plain language, no jargon — what happened and why at each step — so I could step away for days and pick back up knowing exactly where I was and what I had done.
 - A **standing set of instructions for the agent**: how I wanted it to work, the conventions to follow, and the scope it wasn't allowed to creep into.
 
-None of that depended on the model, and that's the part I actually care about. The structure was doing the work, not the agent — I could have dropped to a weaker model on a given day and still gotten consistent results, because the next step and the reasoning behind everything already built were written down, not living in one model's context or one good session. It's also why I never lost track of what was in the codebase: at the points that mattered I stopped to genuinely understand what was being built instead of nodding it through and prompting onward, and the files are where that understanding got pinned down.
+One of the important parts that I actually care about, and why intentionally building in this way was key, was that nothing was dependent on the model. The structure was doing most of the work, not the agent — I could've dropped to a weaker model or gone up to a stronger one on any given day and still gotten consistent results because the next step and the reasoning behind everything already built were written down, not living in one model's context or one good session.
 
-So — not prompt-and-accept. A system I built around the agent, so the decisions stayed mine and the result is something I can still explain and change, end to end.
+I never lost track of what was in the codebase because I stopped at the points that mattered, to actually understand what was being built, not just accept it. The files are where that understanding got written down.
+
+So — not prompt-and-accept. It was a system I built around the agent, so the decisions stayed mine and the result is something I can still explain and change, end to end.
