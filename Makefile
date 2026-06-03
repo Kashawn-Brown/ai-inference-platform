@@ -1,4 +1,4 @@
-.PHONY: install hooks up down logs rebuild migrate test lint fmt bench-smoke bench-load
+.PHONY: install hooks up down logs rebuild migrate test lint fmt bench-smoke bench-load bench-stress
 
 install:
 	uv sync
@@ -39,3 +39,6 @@ bench-smoke:
 
 bench-load:
 	docker compose --profile bench run --rm k6 run /benchmarks/scripts/load.js
+
+bench-stress:
+	docker compose --profile bench run --rm k6 run /benchmarks/scripts/stress.js

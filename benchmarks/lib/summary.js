@@ -40,6 +40,8 @@ export function buildSummary(meta, data) {
   const failed = values(data, 'http_req_failed');
   const checks = values(data, 'checks');
   const iters = values(data, 'iterations');
+  // Only arrival-rate executors (stress) emit this; absent for smoke/load.
+  const dropped = values(data, 'dropped_iterations');
 
   const result = {
     scenario: meta.scenario,
@@ -51,6 +53,7 @@ export function buildSummary(meta, data) {
       requests: reqs.count,
       throughput_rps: reqs.rate,
       iterations: iters.count,
+      dropped_iterations: dropped.count,
       failure_rate: failed.rate,
       checks_rate: checks.rate,
       latency_ms: {
@@ -66,10 +69,11 @@ export function buildSummary(meta, data) {
   };
 
   const md = renderMarkdown(meta, tag, result.metrics, checks);
+  const dropNote = dropped.count ? `, drops ${fmt(dropped.count, 0)}` : '';
   const recap =
     `\n${meta.scenario}: ${fmt(reqs.count, 0)} reqs @ ${fmt(reqs.rate)}/s, ` +
     `fail ${fmt((failed.rate || 0) * 100)}%, ` +
-    `p95 ${fmt(dur['p(95)'])}ms, p99 ${fmt(dur['p(99)'])}ms\n` +
+    `p95 ${fmt(dur['p(95)'])}ms, p99 ${fmt(dur['p(99)'])}ms${dropNote}\n` +
     `-> ${base}.json\n-> ${base}.md\n`;
 
   return {
@@ -82,6 +86,28 @@ export function buildSummary(meta, data) {
 function renderMarkdown(meta, tag, m, checks) {
   const lat = m.latency_ms;
   const total = (checks.passes || 0) + (checks.fails || 0);
+
+  const rows = [
+    `| Requests | ${fmt(m.requests, 0)} |`,
+    `| Throughput | ${fmt(m.throughput_rps)} req/s |`,
+  ];
+  // Dropped iterations only exist for arrival-rate scenarios (stress); show the
+  // row only when the metric is present so smoke/load tables stay clean.
+  if (m.dropped_iterations !== undefined && m.dropped_iterations !== null) {
+    rows.push(`| Dropped iterations | ${fmt(m.dropped_iterations, 0)} |`);
+  }
+  rows.push(
+    `| Failure rate | ${fmt((m.failure_rate || 0) * 100)}% |`,
+    `| Checks passed | ${fmt(checks.passes, 0)}/${fmt(total, 0)} ` +
+      `(${fmt((m.checks_rate || 0) * 100)}%) |`,
+    `| Latency avg | ${fmt(lat.avg)} ms |`,
+    `| Latency p50 | ${fmt(lat.p50)} ms |`,
+    `| Latency p90 | ${fmt(lat.p90)} ms |`,
+    `| Latency p95 | ${fmt(lat.p95)} ms |`,
+    `| Latency p99 | ${fmt(lat.p99)} ms |`,
+    `| Latency max | ${fmt(lat.max)} ms |`,
+  );
+
   return [
     `# ${cap(meta.scenario)} benchmark — ${tag}`,
     '',
@@ -95,17 +121,7 @@ function renderMarkdown(meta, tag, m, checks) {
     '',
     '| Metric | Value |',
     '| --- | --- |',
-    `| Requests | ${fmt(m.requests, 0)} |`,
-    `| Throughput | ${fmt(m.throughput_rps)} req/s |`,
-    `| Failure rate | ${fmt((m.failure_rate || 0) * 100)}% |`,
-    `| Checks passed | ${fmt(checks.passes, 0)}/${fmt(total, 0)} ` +
-      `(${fmt((m.checks_rate || 0) * 100)}%) |`,
-    `| Latency avg | ${fmt(lat.avg)} ms |`,
-    `| Latency p50 | ${fmt(lat.p50)} ms |`,
-    `| Latency p90 | ${fmt(lat.p90)} ms |`,
-    `| Latency p95 | ${fmt(lat.p95)} ms |`,
-    `| Latency p99 | ${fmt(lat.p99)} ms |`,
-    `| Latency max | ${fmt(lat.max)} ms |`,
+    ...rows,
     '',
   ].join('\n');
 }
