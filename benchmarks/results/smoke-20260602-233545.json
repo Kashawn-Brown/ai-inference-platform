@@ -1,0 +1,26 @@
+{
+  "scenario": "smoke",
+  "run_tag": "20260602-233545",
+  "target": "http://gateway:8000/v1/inference",
+  "load": "1 VU for 30s",
+  "generation": {
+    "max_tokens": 64,
+    "temperature": 0.7
+  },
+  "metrics": {
+    "requests": 12,
+    "throughput_rps": 0.39399112486464666,
+    "iterations": 12,
+    "failure_rate": 0,
+    "checks_rate": 1,
+    "latency_ms": {
+      "avg": 2537.4878325833333,
+      "min": 1584.555491,
+      "p50": 1863.679797,
+      "p90": 2046.8997221000002,
+      "p95": 5636.0999443999945,
+      "p99": 9145.105854480005,
+      "max": 10022.357332
+    }
+  }
+}

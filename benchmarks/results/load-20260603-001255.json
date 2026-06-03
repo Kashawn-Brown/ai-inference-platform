@@ -1,0 +1,26 @@
+{
+  "scenario": "load",
+  "run_tag": "20260603-001255",
+  "target": "http://gateway:8000/v1/inference",
+  "load": "ramp 0->2 over 30s, hold 2 for 1m, ramp->0 over 15s",
+  "generation": {
+    "max_tokens": 64,
+    "temperature": 0.7
+  },
+  "metrics": {
+    "requests": 17,
+    "throughput_rps": 0.1607476354581942,
+    "iterations": 17,
+    "failure_rate": 0,
+    "checks_rate": 1,
+    "latency_ms": {
+      "avg": 9371.245433176471,
+      "min": 1741.108024,
+      "p50": 2053.448843,
+      "p90": 24188.616541,
+      "p95": 25123.9442786,
+      "p99": 26026.282344519997,
+      "max": 26251.866861
+    }
+  }
+}

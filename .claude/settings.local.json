@@ -5,7 +5,10 @@
       "Bash(uv run *)",
       "Bash(grep -nA3 -i \"black\" .pre-commit-config.yaml)",
       "Bash(docker version *)",
-      "Bash(gh pr *)"
+      "Bash(gh pr *)",
+      "Bash(docker compose *)",
+      "Bash(git check-ignore *)",
+      "Bash(node --check benchmarks/scripts/load.js)"
     ]
   }
 }
