@@ -35,6 +35,8 @@ htmlcov/
 # Per-run benchmark summaries are committed artifacts, not local docs
 !benchmarks/results/*.md
 
-# Planning docs (also private)
-docs/
+# docs/ holds private planning material (the .docx, scratch notes) plus committed
+# Markdown like architecture.md — ignore the contents, whitelist the .md files
+docs/*
+!docs/*.md
 vllm-crash.log

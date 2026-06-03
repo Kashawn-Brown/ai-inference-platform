@@ -8,7 +8,8 @@
       "Bash(gh pr *)",
       "Bash(docker compose *)",
       "Bash(git check-ignore *)",
-      "Bash(node --check benchmarks/scripts/load.js)"
+      "Bash(node --check benchmarks/scripts/load.js)",
+      "Bash(git status *)"
     ]
   }
 }
