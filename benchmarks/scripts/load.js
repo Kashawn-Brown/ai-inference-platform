@@ -11,7 +11,10 @@
 import { inference, BASE_URL, MAX_TOKENS, TEMPERATURE } from '../lib/inference.js';
 import { buildSummary } from '../lib/summary.js';
 
-const VUS = Number(__ENV.LOAD_VUS || 5);
+// 3 sustained VUs is the empirically sustainable concurrency on the reference
+// 4GB Turing card — 5 tripped both gates live (decisions.md #28). Override for
+// other hardware; fall back to 2 if a run still trips.
+const VUS = Number(__ENV.LOAD_VUS || 3);
 const RAMP_UP = __ENV.LOAD_RAMP_UP || '30s';
 const HOLD = __ENV.LOAD_HOLD || '1m';
 const RAMP_DOWN = __ENV.LOAD_RAMP_DOWN || '15s';
