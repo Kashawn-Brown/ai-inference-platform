@@ -1,1 +1,1 @@
-"""Observability — shared Prometheus metrics and (later) correlation IDs."""
+"""Observability — shared Prometheus metrics and correlation IDs."""

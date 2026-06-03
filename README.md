@@ -14,25 +14,126 @@ Most "AI platforms" are either a thin wrapper around a hosted API or an enterpri
 
 ## Architecture
 
-```
-┌──────────┐     POST /v1/inference     ┌──────────┐    HTTP    ┌──────────┐
-│  Client  │ ─────────────────────────▶ │ FastAPI  │ ─────────▶ │   vLLM   │
-└──────────┘                            │ Gateway  │            │  Server  │
-                                        └────┬─────┘            └─────▲────┘
-                                             │                        │
-                                             │ SQL                    │ HTTP
-                                             ▼                        │
-                                        ┌──────────┐                  │
-                                        │ Postgres │ ◀────────────┐   │
-                                        └──────────┘              │   │
-                                             ▲                    │   │
-                                             │ SQL                │   │
-                                        ┌────┴─────┐              │   │
-                                        │  Worker  │ ─────────────┴───┘
-                                        └──────────┘
+```mermaid
+flowchart LR
+    Client["Client"]
+    Gateway["FastAPI Gateway"]
+    Worker["Worker (batch loop)"]
+    vLLM["vLLM Server<br/>Qwen2.5-1.5B-Instruct"]
+    PG[("Postgres")]
+
+    Client -->|"POST /v1/inference"| Gateway
+    Gateway -->|"HTTP (live inference)"| vLLM
+    Gateway -->|"SQL (batch state)"| PG
+    Worker -->|"SQL (claim items)"| PG
+    Worker -->|"HTTP (direct)"| vLLM
 ```
 
 The worker calls vLLM directly — never through the gateway. Live request data lives in logs and metrics; only batch state lives in Postgres.
+
+## Quickstart
+
+A full end-to-end walkthrough — bring up the stack, run a live request, push a batch job through to completion, and see it in metrics. Commands use plain `docker compose` and `curl`; the `Makefile` wraps the same commands (`make up`, `make down`, `make bench-smoke`) if you prefer.
+
+**Prerequisites**
+
+- Docker and Docker Compose
+- An NVIDIA GPU with the [container toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed — vLLM needs it. The reference setup runs on a 4GB GTX 1650 Ti; see [benchmarks/README.md](benchmarks/README.md) for hardware notes and baseline numbers.
+- No `.env` required — the Compose defaults work as-is. Copy [.env.example](.env.example) to `.env` only if you want to customize anything.
+
+> On Windows, run the `curl` commands below in Git Bash or use `curl.exe` — PowerShell aliases `curl` to `Invoke-WebRequest`, which takes different arguments.
+
+**1. Start the stack**
+
+```bash
+docker compose up -d
+```
+
+First boot downloads ~3GB of model weights into a named volume, so vLLM can take a few minutes to report healthy. Weights persist across `docker compose down`, so later starts are fast. Watch progress with `docker compose logs -f vllm`.
+
+**2. Check liveness and readiness**
+
+```bash
+curl http://localhost:8000/healthz
+curl http://localhost:8000/readyz
+```
+
+`/healthz` returns `{"status":"ok"}` as soon as the gateway is up. `/readyz` returns `200` with `{"status":"ready","checks":{"vllm":true,"database":true}}` once vLLM and Postgres are both reachable — and `503` listing the failing dependency until then. Wait for `/readyz` to be ready before the next steps.
+
+**3. Run a live inference request**
+
+```bash
+curl -X POST http://localhost:8000/v1/inference \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Explain what a vector database is in one sentence.", "max_tokens": 64, "temperature": 0.7}'
+```
+
+```json
+{
+  "request_id": "3f9c0b1e-...",
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "output": "A vector database is a system that stores data as numerical vectors ...",
+  "usage": {"prompt_tokens": 18, "completion_tokens": 42},
+  "latency_ms": 5123
+}
+```
+
+The `request_id` is echoed on the `X-Request-ID` response header and appears in the gateway's structured logs for that request.
+
+**4. Submit a batch job**
+
+```bash
+curl -X POST http://localhost:8000/v1/batch/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "demo-batch",
+    "items": [
+      {"input_payload": {"prompt": "Summarize the plot of Hamlet in one line."}},
+      {"input_payload": {"prompt": "Name three primary colors."}}
+    ]
+  }'
+```
+
+The response is the created job with `"status": "queued"` and an `id` — copy it for the next step. The model is resolved from the active config; pass `"model": "<name>"` to pin a specific one.
+
+**5. Watch it complete and inspect the results**
+
+```bash
+curl http://localhost:8000/v1/batch/jobs/<job_id>
+curl http://localhost:8000/v1/batch/jobs/<job_id>/items
+```
+
+The job moves `queued` → `running` → `completed` as the worker drains it, with `completed_items` / `failed_items` updating as it goes. Each item carries its result: a completed item has an `output_payload` (output, model, token usage); a failed one has an `error_message` and a null `output_payload`. One bad input fails only its own item, not the job.
+
+**6. (Optional) List the model configs**
+
+```bash
+curl http://localhost:8000/v1/models
+```
+
+Returns the active model configs — the source of truth for which model the platform serves and with what serving parameters.
+
+**7. See it in Grafana**
+
+Open [http://localhost:3000](http://localhost:3000) (anonymous access is enabled) and look in the **AI Inference** dashboard folder — gateway, worker, and system-overview dashboards. Request rate, error ratio, latency quantiles, batch throughput, and queue lag populate as you send traffic.
+
+**8. Run a benchmark**
+
+```bash
+make bench-smoke
+```
+
+Runs the k6 smoke scenario against the gateway and writes a JSON result plus a markdown summary into `benchmarks/results/`. `make bench-load` and `make bench-stress` run the heavier scenarios — see [benchmarks/README.md](benchmarks/README.md).
+
+**9. Tear down**
+
+```bash
+docker compose down
+```
+
+Containers stop; the model-weights and Postgres volumes persist, so the next `docker compose up -d` starts quickly. Add `-v` to remove the volumes too.
+
+Opening a pull request runs the CI pipeline — `ruff` + `black`, `pytest`, and a `docker compose build` smoke check — on every PR.
 
 ## Stack
 

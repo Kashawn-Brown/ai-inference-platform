@@ -1,8 +1,8 @@
 """Async vLLM client.
 
 Wraps the OpenAI-compatible vLLM HTTP API for live inference. Shared by the
-gateway (Phase 1) and, later, the batch worker (Phase 2) — the worker calls
-vLLM directly, never through the gateway.
+gateway and the batch worker — the worker calls vLLM directly, never through
+the gateway.
 
 This module is the boundary where vLLM's failure modes are turned into typed
 errors. Transport problems (timeout, refused connection) and protocol problems

@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aiinfra.db.models import BatchJob, BatchJobItem, JobStatus, ModelConfig
+from aiinfra.db.models import BatchJob, BatchJobItem, ItemStatus, JobStatus, ModelConfig
 from aiinfra.db.session import get_session
 from aiinfra.gateway.pagination import decode_cursor, encode_cursor
 from aiinfra.schemas.batch import (
@@ -97,7 +97,7 @@ async def submit_job(
                 batch_job_id=job.id,
                 item_index=index,
                 input_payload=item.input_payload,
-                status=JobStatus.QUEUED.value,
+                status=ItemStatus.QUEUED.value,
             )
         )
 
