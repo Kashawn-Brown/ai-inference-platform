@@ -9,7 +9,9 @@
       "Bash(docker compose *)",
       "Bash(git check-ignore *)",
       "Bash(node --check benchmarks/scripts/load.js)",
-      "Bash(git status *)"
+      "Bash(git status *)",
+      "WebSearch",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
